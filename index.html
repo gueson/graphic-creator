@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>自媒体图文制作神器</title>
+  <!-- 引入TailwindCSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入html2canvas CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <!-- 引入Lucide图标CDN -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <!-- 引入在线字体（网红字体） -->
+  <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;700;900&family=Noto+Serif+SC:wght@400;700;900&family=ZCOOL+KuaiLe&family=ZCOOL+QingKe+HuangYou&family=ZCOOL+XiaoWei&family=Montserrat:wght@400;700&family=Oswald:wght@400;700&family=Poppins:wght@400;700&family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
+  <!-- Plausible 访问统计（最简方案，替换为你的域名） -->
+  <script defer data-domain="你的vercel域名.vercel.app" src="https://plausible.io/js/script.js"></script>
+  <!-- Tailwind配置 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {},
+      }
+    }
+  </script>
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .preview-container {
+        max-height: 80vh;
+        max-width: 100%;
+        margin-bottom: 20px !important;
+      }
+    }
+  </style>
+  <style>
+    /* 基础样式补充 */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    * {
+      box-sizing: inherit;
+    }
+    .text-pre-wrap {
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    /* 修复下拉框选中样式 */
+    select:focus {
+      outline: 2px solid #3b82f6;
+      outline-offset: 2px;
+    }
+    /* 本地环境兼容样式 */
+    #tempRenderContainer {
+      position: fixed !important;
+      top: -9999px !important;
+      left: -9999px !important;
+      z-index: 9999 !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    /* 预览区固定上边距，强制不滚动 */
+    #previewArea {
+      margin-top: 30px !important;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-bottom: 20px;
+    }
+    #previewWrapper {
+      max-width: calc(100vw - 40px) !important;
+      max-height: calc(80vh - 120px) !important;
+    }
+    /* 反馈弹窗样式 */
+    #contactModal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-content {
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      max-width: 90%;
+      width: 400px;
+      text-align: center;
+    }
+    .qrcode-img {
+      width: 200px;
+      height: 200px;
+      margin: 1rem auto;
+      border: 1px solid #eee;
+      padding: 0.5rem;
+    }
+    .close-modal {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #666;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+  <!-- 顶部导航 -->
+  <header class="sticky top-0 z-10 bg-white dark:bg-gray-800 shadow-sm px-4 py-3">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+      <h1 class="text-xl font-bold text-blue-600 dark:text-blue-400">自媒体图文制作神器</h1>
+      <div class="flex gap-2">
+        <button id="undoBtn" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50" title="撤销">
+          <i data-lucide="undo" class="w-5 h-5"></i>
+        </button>
+        <button id="redoBtn" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50" title="重做">
+          <i data-lucide="redo" class="w-5 h-5"></i>
+        </button>
+        <button id="previewFullscreenBtn" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700" title="全屏预览">
+          <i data-lucide="eye" class="w-5 h-5"></i>
+        </button>
+        <!-- 新增反馈/联系按钮 -->
+        <button id="contactBtn" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700" title="反馈/联系我">
+          <i data-lucide="message-square" class="w-5 h-5"></i>
+        </button>
+        <button id="downloadHighBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+          <i data-lucide="download" class="w-4.5 h-4.5"></i>
+          下载高清图
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 反馈/联系弹窗 -->
+  <div id="contactModal">
+    <div class="modal-content relative">
+      <span class="close-modal" id="closeModal">&times;</span>
+      <h2 class="text-xl font-bold text-blue-600 mb-2">反馈/联系我</h2>
+      <p class="text-gray-600 mb-3">有任何问题或建议，欢迎联系我！</p>
+      <div class="mb-3">
+        <p class="font-medium">📧 邮箱：gueson1989@gmail.com</p>
+      </div>
+      <div>
+        <p class="font-medium">📱 微信群：扫码加入</p>
+        <!-- 替换为你的微信群二维码图片地址 -->
+        <img src="./images/group-chat.jpg" alt="微信群二维码" class="qrcode-img">
+        <p class="text-sm text-red-500 mt-1">若二维码失效，可通过上方邮箱联系</p>
+      </div>
+    </div>
+  </div>
+
+  <main id="mainContent" class="max-w-7xl mx-auto p-4 md:p-6 flex flex-col md:flex-row gap-6">
+    <!-- 左侧编辑区 -->
+    <div class="w-full md:w-1/3 lg:w-1/4 space-y-6">
+      <!-- 尺寸设置 -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+        <h3 class="font-semibold mb-3 flex items-center gap-2">
+          <i data-lucide="zoom-in" class="w-4.5 h-4.5"></i> 尺寸设置
+        </h3>
+        <select id="sizeSelect" class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg mb-3 bg-white dark:bg-gray-900">
+          <option value="9:16" data-width="1080" data-height="1920">抖音竖版 (9:16)</option>
+          <option value="16:9" data-width="1920" data-height="1080">抖音横版 (16:9)</option>
+          <option value="3:4" data-width="1080" data-height="1440">小红书 (3:4)</option>
+          <option value="4:3" data-width="1080" data-height="810">公众号封面 (4:3)</option>
+          <option value="1:1" data-width="1080" data-height="1080">视频号 (1:1)</option>
+          <option value="custom">自定义</option>
+        </select>
+        
+        <div id="customSizeContainer" class="grid grid-cols-2 gap-3 hidden">
+          <div>
+            <label class="text-sm text-gray-600 dark:text-gray-400 mb-1 block">宽度(px)</label>
+            <input type="number" id="customWidth" min="100" max="4096" value="1080" class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900">
+          </div>
+          <div>
+            <label class="text-sm text-gray-600 dark:text-gray-400 mb-1 block">高度(px)</label>
+            <input type="number" id="customHeight" min="100" max="4096" value="1920" class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900">
+          </div>
+        </div>
+      </div>
+
+      <!-- 文案编辑（新增20+网红字体） -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+        <h3 class="font-semibold mb-3 flex items-center gap-2">
+          <i data-lucide="type" class="w-4.5 h-4.5"></i> 文案设置
+        </h3>
+        <textarea id="textInput" placeholder="请输入文案（支持多行）" class="w-full h-32 p-3 border border-gray-300 dark:border-gray-700 rounded-lg mb-3 bg-white dark:bg-gray-900 resize-none">请输入你的文案
+支持多行换行</textarea>
+        
+        <div class="space-y-3">
+          <div>
+            <label class="text-sm text-gray-600 dark:text-gray-400 mb-1 block">字体</label>
+            <select id="fontSelect" class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900">
+              <!-- 系统基础字体 -->
+              <option value="inherit">系统默认</option>
+              <option value="SimHei, sans-serif">黑体</option>
+              <option value="Microsoft YaHei, sans-serif">微软雅黑</option>
+              <option value="SimSun, serif">宋体</option>
+              <option value="KaiTi, serif">楷体</option>
+              <option value="FangSong, serif">仿宋</option>
+              <option value="STSong, serif">宋体-繁</option>
+              <option value="STHeiti, sans-serif">黑体-繁</option>
+              
+              <!-- 网红中文字体（Google Fonts） -->
+              <option value="'Ma Shan Zheng', cursive" selected>马善政（手写风）</option>
+              <option value="'ZCOOL KuaiLe', sans-serif">站酷快乐体（卡通）</option>
+              <option value="'ZCOOL QingKe HuangYou', sans-serif">站酷庆科黄油体（圆润）</option>
+              <option value="'ZCOOL XiaoWei', serif">站酷小薇体（优雅）</option>
+              <option value="'Noto Sans SC', sans-serif">思源黑体（百搭）</option>
+              <option value="'Noto Sans SC', sans-serif; font-weight: 700">思源黑体-粗</option>
+              <option value="'Noto Sans SC', sans-serif; font-weight: 900">思源黑体-黑</option>
+              <option value="'Noto Serif SC', serif">思源宋体（复古）</option>
+              <option value="'Noto Serif SC', serif; font-weight: 700">思源宋体-粗</option>
+              <option value="'Noto Serif SC', serif; font-weight: 900">思源宋体-黑</option>
+              
+              <!-- 网红英文字体 -->
+              <option value="'Montserrat', sans-serif">Montserrat（简约）</option>
+              <option value="'Montserrat', sans-serif; font-weight: 700">Montserrat-粗</option>
+              <option value="'Oswald', sans-serif">Oswald（硬朗）</option>
+              <option value="'Oswald', sans-serif; font-weight: 700">Oswald-粗</option>
+              <option value="'Poppins', sans-serif">Poppins（时尚）</option>
+              <option value="'Poppins', sans-serif; font-weight: 700">Poppins-粗</option>
+              <option value="'Roboto', sans-serif">Roboto（现代）</option>
+              <option value="'Roboto', sans-serif; font-weight: 700">Roboto-粗</option>
+              <option value="'Roboto', sans-serif; font-weight: 900">Roboto-黑</option>
+              
+              <!-- 经典网红字体 -->
+              <option value="Arial Black, Gadget, sans-serif">Arial Black（粗黑）</option>
+              <option value="Impact, Charcoal, sans-serif">Impact（冲击力）</option>
+              <option value="Comic Sans MS, cursive, sans-serif">Comic Sans（童趣）</option>
+              <option value="Courier New, Courier, monospace">Courier（复古打字机）</option>
+            </select>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-sm text-gray-600 dark:text-gray-400 mb-1 block">字号(px)</label>
+              <input type="number" id="fontSize" min="12" max="120" value="48" class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600 dark:text-gray-400 mb-1 block">对齐方式</label>
+              <select id="textAlign" class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900">
+                <option value="left">左对齐</option>
+                <option value="center" selected>居中</option>
+                <option value="right">右对齐</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-sm text-gray-600 dark:text-gray-400 mb-1 block">字体颜色</label>
+              <input type="color" id="fontColor" value="#ffffff" class="w-full h-10 border border-gray-300 dark:border-gray-700 rounded-lg bg-transparent cursor-pointer">
+            </div>
+            <div>
+              <label class="text-sm text-gray-600 dark:text-gray-400 mb-1 block">行高</label>
+              <input type="number" step="0.1" id="lineHeight" min="0.8" max="3" value="1.5" class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 背景设置 -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+        <h3 class="font-semibold mb-3 flex items-center gap-2">
+          <i data-lucide="palette" class="w-4.5 h-4.5"></i> 背景设置
+        </h3>
+        
+        <div class="space-y-3">
+          <div>
+            <label class="text-sm text-gray-600 dark:text-gray-400 mb-1 block">背景颜色</label>
+            <input type="color" id="bgColor" value="#000000" class="w-full h-10 border border-gray-300 dark:border-gray-700 rounded-lg bg-transparent cursor-pointer">
+          </div>
+          
+          <div>
+            <label class="text-sm text-gray-600 dark:text-gray-400 mb-1 block">背景图片</label>
+            <div class="flex gap-2">
+              <button id="uploadBgBtn" class="flex-1 p-2 border border-gray-300 dark:border-gray-700 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-700">
+                <i data-lucide="image" class="w-4 h-4"></i>
+                上传图片
+              </button>
+              <input type="file" id="bgImageInput" accept="image/*" class="hidden">
+              <button id="clearBgBtn" class="p-2 border border-red-300 dark:border-red-700 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hidden">
+                清除
+              </button>
+            </div>
+          </div>
+          
+          <div id="bgModeContainer" class="hidden">
+            <label class="text-sm text-gray-600 dark:text-gray-400 mb-1 block">图片显示模式</label>
+            <select id="bgMode" class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900">
+              <option value="cover" selected>拉伸覆盖</option>
+              <option value="contain">保持比例</option>
+              <option value="repeat">平铺</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- 导出设置 -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+        <h3 class="font-semibold mb-3">导出设置</h3>
+        <div class="flex flex-col gap-3">
+          <button id="downloadHighBtn2" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium">
+            下载高清图片 (PNG)
+          </button>
+          <button id="downloadNormalBtn" class="w-full bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg font-medium">
+            下载标清图片 (PNG)
+          </button>
+          <p class="text-xs text-gray-500 dark:text-gray-400 text-center">
+            支持主流社交平台尺寸，导出图片无水印
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右侧预览区（修复固定上边距+无需滚动） -->
+    <div class="w-full md:w-2/3 lg:w-3/4" id="previewArea">
+      <div class="mb-4 text-center w-full">
+        <h2 class="text-lg font-semibold">实时预览</h2>
+        <p id="sizeInfo" class="text-sm text-gray-500 dark:text-gray-400">
+          尺寸: 1080px × 1920px (9:16)
+        </p>
+      </div>
+      
+      <div class="w-full flex items-center justify-center preview-container">
+        <div id="previewWrapper" class="border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg overflow-hidden bg-white dark:bg-gray-800">
+          <div id="canvasContainer" class="w-full h-full relative overflow-hidden" style="background-color: #000000;">
+            <div id="textContainer" class="absolute inset-0 flex items-center justify-center p-8 text-pre-wrap" style="color: #ffffff; font-family: 'Ma Shan Zheng', cursive; font-size: 48px; text-align: center; line-height: 1.5;">
+              请输入你的文案
+支持多行换行
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 全屏预览 -->
+  <div id="fullscreenPreview" class="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4 hidden">
+    <button id="closeFullscreenBtn" class="absolute top-4 right-4 text-white bg-red-600 w-10 h-10 rounded-full flex items-center justify-center">
+      ×
+    </button>
+    <div id="fullscreenCanvas" class="preview-container">
+      <div class="w-full h-full relative overflow-hidden" style="background-color: #000000;">
+        <div class="absolute inset-0 flex items-center justify-center p-8 text-pre-wrap" style="color: #ffffff; font-family: 'Ma Shan Zheng', cursive; font-size: 48px; text-align: center; line-height: 1.5;">
+          请输入你的文案
+支持多行换行
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 本地渲染临时容器 -->
+  <div id="tempRenderContainer"></div>
+
+  <!-- 底部 -->
+  <footer class="mt-10 py-4 text-center text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-800">
+    自媒体图文制作神器 © 2025 | 兼容移动端/PC端 | 无水印导出
+    <!-- 底部也可加个小的反馈入口 -->
+    <p class="mt-1 text-xs"><a href="javascript:document.getElementById('contactModal').style.display='flex'" class="text-blue-500 hover:underline">问题反馈/联系作者</a></p>
+  </footer>
+
+  <script>
+    // 初始化图标
+    lucide.createIcons();
+
+    // 核心状态管理
+    const state = {
+      text: '请输入你的文案\n支持多行换行',
+      selectedSize: { ratio: '9:16', width: 1080, height: 1920 },
+      customWidth: 1080,
+      customHeight: 1920,
+      font: "'Ma Shan Zheng', cursive", // 默认网红字体
+      fontSize: 48,
+      fontColor: '#ffffff',
+      bgColor: '#000000',
+      bgImage: null,
+      bgMode: 'cover',
+      textAlign: 'center',
+      lineHeight: 1.5,
+      previewFullscreen: false,
+      history: [],
+      historyIndex: -1
+    };
+
+    // DOM元素引用
+    const elements = {
+      sizeSelect: document.getElementById('sizeSelect'),
+      customSizeContainer: document.getElementById('customSizeContainer'),
+      customWidth: document.getElementById('customWidth'),
+      customHeight: document.getElementById('customHeight'),
+      sizeInfo: document.getElementById('sizeInfo'),
+      textInput: document.getElementById('textInput'),
+      fontSelect: document.getElementById('fontSelect'),
+      fontSize: document.getElementById('fontSize'),
+      fontColor: document.getElementById('fontColor'),
+      textAlign: document.getElementById('textAlign'),
+      lineHeight: document.getElementById('lineHeight'),
+      bgColor: document.getElementById('bgColor'),
+      uploadBgBtn: document.getElementById('uploadBgBtn'),
+      bgImageInput: document.getElementById('bgImageInput'),
+      clearBgBtn: document.getElementById('clearBgBtn'),
+      bgModeContainer: document.getElementById('bgModeContainer'),
+      bgMode: document.getElementById('bgMode'),
+      canvasContainer: document.getElementById('canvasContainer'),
+      textContainer: document.getElementById('textContainer'),
+      previewWrapper: document.getElementById('previewWrapper'),
+      undoBtn: document.getElementById('undoBtn'),
+      redoBtn: document.getElementById('redoBtn'),
+      previewFullscreenBtn: document.getElementById('previewFullscreenBtn'),
+      fullscreenPreview: document.getElementById('fullscreenPreview'),
+      closeFullscreenBtn: document.getElementById('closeFullscreenBtn'),
+      fullscreenCanvas: document.getElementById('fullscreenCanvas'),
+      mainContent: document.getElementById('mainContent'),
+      downloadHighBtn: document.getElementById('downloadHighBtn'),
+      downloadHighBtn2: document.getElementById('downloadHighBtn2'),
+      downloadNormalBtn: document.getElementById('downloadNormalBtn'),
+      tempRenderContainer: document.getElementById('tempRenderContainer'),
+      previewArea: document.getElementById('previewArea'),
+      // 新增反馈相关元素
+      contactBtn: document.getElementById('contactBtn'),
+      contactModal: document.getElementById('contactModal'),
+      closeModal: document.getElementById('closeModal')
+    };
+
+    // 保存历史记录
+    const saveHistory = () => {
+      const currentState = {
+        text: state.text,
+        selectedSize: { ...state.selectedSize },
+        customWidth: state.customWidth,
+        customHeight: state.customHeight,
+        font: state.font,
+        fontSize: state.fontSize,
+        fontColor: state.fontColor,
+        bgColor: state.bgColor,
+        bgImage: state.bgImage,
+        bgMode: state.bgMode,
+        textAlign: state.textAlign,
+        lineHeight: state.lineHeight
+      };
+      const newHistory = state.history.slice(0, state.historyIndex + 1);
+      state.history = [...newHistory, currentState];
+      state.historyIndex = newHistory.length;
+      updateHistoryButtons();
+    };
+
+    // 更新撤销/重做按钮状态
+    const updateHistoryButtons = () => {
+      elements.undoBtn.disabled = state.historyIndex <= 0;
+      elements.redoBtn.disabled = state.historyIndex >= state.history.length - 1;
+    };
+
+    // 撤销
+    const handleUndo = () => {
+      if (state.historyIndex > 0) {
+        const prevState = state.history[state.historyIndex - 1];
+        Object.assign(state, prevState);
+        renderAll();
+        state.historyIndex--;
+        updateHistoryButtons();
+      }
+    };
+
+    // 重做
+    const handleRedo = () => {
+      if (state.historyIndex < state.history.length - 1) {
+        const nextState = state.history[state.historyIndex + 1];
+        Object.assign(state, nextState);
+        renderAll();
+        state.historyIndex++;
+        updateHistoryButtons();
+      }
+    };
+
+    // 获取当前尺寸
+    const getCurrentSize = () => {
+      if (state.selectedSize.ratio === 'custom') {
+        return { 
+          width: parseInt(state.customWidth), 
+          height: parseInt(state.customHeight),
+          ratio: `${state.customWidth}:${state.customHeight}`
+        };
+      }
+      return { 
+        width: state.selectedSize.width, 
+        height: state.selectedSize.height,
+        ratio: state.selectedSize.ratio
+      };
+    };
+
+    // 更新尺寸信息和预览容器大小（强制固定上边距，无需滚动）
+    const updateSizeInfo = () => {
+      const { width, height, ratio } = getCurrentSize();
+      elements.sizeInfo.textContent = `尺寸: ${width}px × ${height}px (${ratio})`;
+      
+      // 强制限制预览框大小，确保无需滚动
+      const maxWidth = window.innerWidth * 0.8;
+      const maxHeight = window.innerHeight * 0.6; // 进一步缩小高度，避免滚动
+      const aspectRatio = width / height;
+      let displayWidth, displayHeight;
+      
+      if (aspectRatio >= 1) {
+        // 横版
+        displayWidth = Math.min(maxWidth, maxHeight * aspectRatio);
+        displayHeight = displayWidth / aspectRatio;
+      } else {
+        // 竖版
+        displayHeight = Math.min(maxHeight, maxWidth / aspectRatio);
+        displayWidth = displayHeight * aspectRatio;
+      }
+      
+      // 强制设置预览框大小，固定上边距100px
+      elements.previewWrapper.style.width = `${displayWidth}px`;
+      elements.previewWrapper.style.height = `${displayHeight}px`;
+      elements.canvasContainer.style.width = `${displayWidth}px`;
+      elements.canvasContainer.style.height = `${displayHeight}px`;
+      elements.fullscreenCanvas.style.width = `${Math.min(window.innerWidth * 0.9, width)}px`;
+      elements.fullscreenCanvas.style.height = `${Math.min(window.innerHeight * 0.9, height)}px`;
+      
+      // 强制设置预览区上边距
+      elements.previewArea.style.marginTop = '100px';
+    };
+
+    // 渲染所有内容
+    const renderAll = () => {
+      updateFormValues();
+      updateSizeInfo();
+      updateCanvasStyle();
+      updateFullscreenPreview();
+    };
+
+    // 更新表单值
+    const updateFormValues = () => {
+      elements.sizeSelect.value = state.selectedSize.ratio;
+      elements.customWidth.value = state.customWidth;
+      elements.customHeight.value = state.customHeight;
+      elements.customSizeContainer.style.display = state.selectedSize.ratio === 'custom' ? 'grid' : 'none';
+      
+      elements.textInput.value = state.text;
+      elements.fontSelect.value = state.font;
+      elements.fontSize.value = state.fontSize;
+      elements.fontColor.value = state.fontColor;
+      elements.textAlign.value = state.textAlign;
+      elements.lineHeight.value = state.lineHeight;
+      
+      elements.bgColor.value = state.bgColor;
+      elements.clearBgBtn.style.display = state.bgImage ? 'block' : 'none';
+      elements.bgModeContainer.style.display = state.bgImage ? 'block' : 'none';
+      elements.bgMode.value = state.bgMode;
+    };
+
+    // 更新画布样式
+    const updateCanvasStyle = () => {
+      elements.canvasContainer.style.backgroundColor = state.bgColor;
+      elements.canvasContainer.style.backgroundImage = state.bgImage ? `url(${state.bgImage})` : 'none';
+      elements.canvasContainer.style.backgroundSize = state.bgMode === 'cover' ? 'cover' : state.bgMode === 'contain' ? 'contain' : 'repeat';
+      elements.canvasContainer.style.backgroundPosition = 'center';
+      elements.canvasContainer.style.backgroundRepeat = state.bgMode === 'repeat' ? 'repeat' : 'no-repeat';
+      
+      // 处理字体样式（兼容weight）
+      const fontParts = state.font.split(';');
+      const fontFamily = fontParts[0].trim();
+      const fontWeight = fontParts.length > 1 ? fontParts[1].replace('font-weight:', '').trim() : '400';
+      
+      elements.textContainer.style.color = state.fontColor;
+      elements.textContainer.style.fontFamily = fontFamily;
+      elements.textContainer.style.fontWeight = fontWeight;
+      elements.textContainer.style.fontSize = `${state.fontSize}px`;
+      elements.textContainer.style.textAlign = state.textAlign;
+      elements.textContainer.style.lineHeight = state.lineHeight;
+      elements.textContainer.textContent = state.text;
+    };
+
+    // 更新全屏预览
+    const updateFullscreenPreview = () => {
+      const fullscreenContent = elements.fullscreenCanvas.querySelector('div');
+      if (fullscreenContent) {
+        const textContent = fullscreenContent.querySelector('div');
+        if (textContent) {
+          fullscreenContent.style.backgroundColor = state.bgColor;
+          fullscreenContent.style.backgroundImage = state.bgImage ? `url(${state.bgImage})` : 'none';
+          fullscreenContent.style.backgroundSize = state.bgMode === 'cover' ? 'cover' : state.bgMode === 'contain' ? 'contain' : 'repeat';
+          fullscreenContent.style.backgroundPosition = 'center';
+          fullscreenContent.style.backgroundRepeat = state.bgMode === 'repeat' ? 'repeat' : 'no-repeat';
+          
+          // 处理字体样式
+          const fontParts = state.font.split(';');
+          const fontFamily = fontParts[0].trim();
+          const fontWeight = fontParts.length > 1 ? fontParts[1].replace('font-weight:', '').trim() : '400';
+          
+          textContent.style.color = state.fontColor;
+          textContent.style.fontFamily = fontFamily;
+          textContent.style.fontWeight = fontWeight;
+          textContent.style.fontSize = `${state.fontSize}px`;
+          textContent.style.textAlign = state.textAlign;
+          textContent.style.lineHeight = state.lineHeight;
+          textContent.textContent = state.text;
+        }
+      }
+    };
+
+    // 处理背景图片上传
+    const handleBgImageUpload = (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          state.bgImage = event.target?.result;
+          saveHistory();
+          renderAll();
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
+    // 清除背景图片
+    const handleClearBg = () => {
+      state.bgImage = null;
+      saveHistory();
+      renderAll();
+    };
+
+    // 下载图片
+    const handleDownload = async (quality = 'high') => {
+      elements.downloadHighBtn.disabled = true;
+      elements.downloadHighBtn2.disabled = true;
+      elements.downloadNormalBtn.disabled = true;
+      
+      try {
+        const { width, height } = getCurrentSize();
+        const scale = quality === 'high' ? 2 : 1;
+        const renderWidth = width * scale;
+        const renderHeight = height * scale;
+
+        elements.tempRenderContainer.innerHTML = '';
+        
+        const renderContainer = document.createElement('div');
+        renderContainer.style.width = `${renderWidth}px`;
+        renderContainer.style.height = `${renderHeight}px`;
+        renderContainer.style.backgroundColor = state.bgColor;
+        renderContainer.style.backgroundImage = state.bgImage ? `url(${state.bgImage})` : 'none';
+        renderContainer.style.backgroundSize = state.bgMode === 'cover' ? 'cover' : state.bgMode === 'contain' ? 'contain' : 'repeat';
+        renderContainer.style.backgroundPosition = 'center';
+        renderContainer.style.backgroundRepeat = state.bgMode === 'repeat' ? 'repeat' : 'no-repeat';
+        renderContainer.style.position = 'relative';
+        
+        const fontParts = state.font.split(';');
+        const fontFamily = fontParts[0].trim();
+        const fontWeight = fontParts.length > 1 ? fontParts[1].replace('font-weight:', '').trim() : '400';
+        
+        const textContainer = document.createElement('div');
+        textContainer.style.position = 'absolute';
+        textContainer.style.inset = '0';
+        textContainer.style.display = 'flex';
+        textContainer.style.alignItems = 'center';
+        textContainer.style.justifyContent = 'center';
+        textContainer.style.padding = `${2 * scale}rem`;
+        textContainer.style.color = state.fontColor;
+        textContainer.style.fontFamily = fontFamily;
+        textContainer.style.fontWeight = fontWeight;
+        textContainer.style.fontSize = `${state.fontSize * scale}px`;
+        textContainer.style.textAlign = state.textAlign;
+        textContainer.style.lineHeight = state.lineHeight;
+        textContainer.style.whiteSpace = 'pre-wrap';
+        textContainer.style.wordBreak = 'break-all';
+        textContainer.textContent = state.text;
+        
+        renderContainer.appendChild(textContainer);
+        elements.tempRenderContainer.appendChild(renderContainer);
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        const canvas = await html2canvas(renderContainer, {
+          scale: 1,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          backgroundColor: null,
+          foreignObjectRendering: false,
+          removeContainer: false
+        });
+
+        canvas.toBlob(async (blob) => {
+          try {
+            const blobUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.download = `自媒体图文_${Date.now()}_${quality === 'high' ? '高清' : '标清'}.png`;
+            link.href = blobUrl;
+            link.dispatchEvent(new MouseEvent('click', {
+              bubbles: true,
+              cancelable: true,
+              view: window
+            }));
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+            alert(`✅ ${quality === 'high' ? '高清' : '标清'}图片下载成功！`);
+          } catch (e) {
+            const dataUrl = canvas.toDataURL('image/png', quality === 'high' ? 1.0 : 0.8);
+            const link = document.createElement('a');
+            link.download = `自媒体图文_${Date.now()}_${quality === 'high' ? '高清' : '标清'}.png`;
+            link.href = dataUrl;
+            link.click();
+            alert(`✅ ${quality === 'high' ? '高清' : '标清'}图片下载成功（降级模式）！`);
+          }
+        }, 'image/png', quality === 'high' ? 1.0 : 0.8);
+        
+      } catch (error) {
+        console.error('下载失败:', error);
+        alert(`❌ 下载失败，请尝试：
+1. 更换浏览器（推荐Chrome/Edge）
+2. 关闭浏览器隐私模式
+3. 确保预览内容不为空`);
+      } finally {
+        elements.downloadHighBtn.disabled = false;
+        elements.downloadHighBtn2.disabled = false;
+        elements.downloadNormalBtn.disabled = false;
+        elements.tempRenderContainer.innerHTML = '';
+      }
+    };
+
+    // 切换全屏预览
+    const toggleFullscreenPreview = () => {
+      state.previewFullscreen = !state.previewFullscreen;
+      elements.fullscreenPreview.style.display = state.previewFullscreen ? 'flex' : 'none';
+      elements.mainContent.style.display = state.previewFullscreen ? 'none' : 'flex';
+      updateFullscreenPreview();
+    };
+
+    // 新增：反馈弹窗控制
+    const toggleContactModal = () => {
+      elements.contactModal.style.display = elements.contactModal.style.display === 'flex' ? 'none' : 'flex';
+    };
+
+    // 绑定事件监听
+    const bindEvents = () => {
+      // 尺寸选择变化
+      elements.sizeSelect.addEventListener('change', (e) => {
+        const selectedValue = e.target.value;
+        if (selectedValue === 'custom') {
+          state.selectedSize = { ratio: 'custom', width: 0, height: 0 };
+          elements.customSizeContainer.style.display = 'grid';
+        } else {
+          const selectedOption = e.target.options[e.target.selectedIndex];
+          const width = parseInt(selectedOption.dataset.width);
+          const height = parseInt(selectedOption.dataset.height);
+          state.selectedSize = {
+            ratio: selectedValue,
+            width: width,
+            height: height
+          };
+          state.customWidth = width;
+          state.customHeight = height;
+          elements.customSizeContainer.style.display = 'none';
+        }
+        saveHistory();
+        renderAll();
+      });
+
+      // 自定义尺寸变化
+      elements.customWidth.addEventListener('change', (e) => {
+        state.customWidth = parseInt(e.target.value);
+        saveHistory();
+        renderAll();
+      });
+      elements.customHeight.addEventListener('change', (e) => {
+        state.customHeight = parseInt(e.target.value);
+        saveHistory();
+        renderAll();
+      });
+
+      // 文案变化
+      elements.textInput.addEventListener('input', (e) => {
+        state.text = e.target.value;
+        saveHistory();
+        renderAll();
+      });
+
+      // 字体设置变化（兼容带weight的字体）
+      elements.fontSelect.addEventListener('change', (e) => {
+        state.font = e.target.value;
+        saveHistory();
+        renderAll();
+      });
+      elements.fontSize.addEventListener('change', (e) => {
+        state.fontSize = parseInt(e.target.value);
+        saveHistory();
+        renderAll();
+      });
+      elements.fontColor.addEventListener('change', (e) => {
+        state.fontColor = e.target.value;
+        saveHistory();
+        renderAll();
+      });
+      elements.textAlign.addEventListener('change', (e) => {
+        state.textAlign = e.target.value;
+        saveHistory();
+        renderAll();
+      });
+      elements.lineHeight.addEventListener('change', (e) => {
+        state.lineHeight = parseFloat(e.target.value);
+        saveHistory();
+        renderAll();
+      });
+
+      // 背景设置变化
+      elements.bgColor.addEventListener('change', (e) => {
+        state.bgColor = e.target.value;
+        saveHistory();
+        renderAll();
+      });
+      elements.uploadBgBtn.addEventListener('click', () => {
+        elements.bgImageInput.click();
+      });
+      elements.bgImageInput.addEventListener('change', handleBgImageUpload);
+      elements.clearBgBtn.addEventListener('click', handleClearBg);
+      elements.bgMode.addEventListener('change', (e) => {
+        state.bgMode = e.target.value;
+        saveHistory();
+        renderAll();
+      });
+
+      // 历史记录
+      elements.undoBtn.addEventListener('click', handleUndo);
+      elements.redoBtn.addEventListener('click', handleRedo);
+
+      // 全屏预览
+      elements.previewFullscreenBtn.addEventListener('click', toggleFullscreenPreview);
+      elements.closeFullscreenBtn.addEventListener('click', toggleFullscreenPreview);
+
+      // 下载
+      elements.downloadHighBtn.addEventListener('click', () => handleDownload('high'));
+      elements.downloadHighBtn2.addEventListener('click', () => handleDownload('high'));
+      elements.downloadNormalBtn.addEventListener('click', () => handleDownload('normal'));
+
+      // 窗口大小变化（强制重绘预览框）
+      window.addEventListener('resize', () => {
+        updateSizeInfo();
+        // 强制滚动到预览区顶部
+        elements.previewArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+
+      // 新增：反馈弹窗事件
+      elements.contactBtn.addEventListener('click', toggleContactModal);
+      elements.closeModal.addEventListener('click', toggleContactModal);
+      // 点击弹窗外层关闭
+      elements.contactModal.addEventListener('click', (e) => {
+        if (e.target === elements.contactModal) toggleContactModal();
+      });
+    };
+
+    // 初始化
+    const init = () => {
+      saveHistory();
+      bindEvents();
+      renderAll();
+      // 初始化时强制设置上边距
+      elements.previewArea.style.marginTop = '100px';
+    };
+
+    // 启动应用
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
