@@ -13,13 +13,14 @@
   <!-- 引入在线字体（网红字体） -->
   <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;700;900&family=Noto+Serif+SC:wght@400;700;900&family=ZCOOL+KuaiLe&family=ZCOOL+QingKe+HuangYou&family=ZCOOL+XiaoWei&family=Montserrat:wght@400;700&family=Oswald:wght@400;700&family=Poppins:wght@400;700&family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
   <!-- Plausible 访问统计（最简方案，替换为你的域名） -->
-  <!-- <script defer data-domain="https://graphic-maker-ten.vercel.app" src="https://plausible.io/js/script.js"></script> -->
+  <!-- <script defer data-domain="graphic-maker-ten.vercel.app" src="https://plausible.io/js/script.js"></script> -->
   <!-- Privacy-friendly analytics by Plausible -->
-  <script async src="https://plausible.io/js/pa-QA7f--Brh1N1t0pYRaOyy.js"></script>
+  <script async src="https://plausible.io/js/pa-yY76VIWcjLpfoNuUbxe2c.js"></script>
   <script>
     window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
     plausible.init()
   </script>
+
 
 
   <!-- Tailwind配置 -->
@@ -65,11 +66,14 @@
     /* 本地环境兼容样式 */
     #tempRenderContainer {
       position: fixed !important;
-      top: -9999px !important;
-      left: -9999px !important;
+      top: 0 !important;
+      left: 0 !important;
       z-index: 9999 !important;
-      opacity: 0 !important;
+      opacity: 1 !important;
       pointer-events: none !important;
+      width: auto !important;
+      height: auto !important;
+      overflow: visible !important;
     }
     /* 预览区固定上边距，强制不滚动 */
     #previewArea {
@@ -582,12 +586,20 @@
       const fontFamily = fontParts[0].trim();
       const fontWeight = fontParts.length > 1 ? fontParts[1].replace('font-weight:', '').trim() : '400';
       
+      // 计算缩放比例，确保预览效果与实际导出一致
+      const { width } = getCurrentSize();
+      const displayWidth = parseInt(elements.canvasContainer.style.width);
+      const scaleFactor = displayWidth / width;
+      console.log('缩放比例:', scaleFactor);
+      
+      // 根据缩放比例调整文本样式
       elements.textContainer.style.color = state.fontColor;
       elements.textContainer.style.fontFamily = fontFamily;
       elements.textContainer.style.fontWeight = fontWeight;
-      elements.textContainer.style.fontSize = `${state.fontSize}px`;
+      elements.textContainer.style.fontSize = `${state.fontSize * scaleFactor}px`;
       elements.textContainer.style.textAlign = state.textAlign;
       elements.textContainer.style.lineHeight = state.lineHeight;
+      elements.textContainer.style.padding = `${2 * scaleFactor}rem`; // 按比例调整内边距
       elements.textContainer.textContent = state.text;
     };
 
@@ -647,84 +659,104 @@
       elements.downloadNormalBtn.disabled = true;
       
       try {
-        const { width, height } = getCurrentSize();
-        const scale = quality === 'high' ? 2 : 1;
-        const renderWidth = width * scale;
-        const renderHeight = height * scale;
-
-        elements.tempRenderContainer.innerHTML = '';
+        console.log('=== 开始下载图片 ===');
+        console.log('质量:', quality);
         
+        // 获取当前尺寸
+        const { width, height } = getCurrentSize();
+        console.log('当前尺寸:', width, height);
+        
+        // 根据质量设置缩放比例
+        const scale = quality === 'high' ? 2 : 1;
+        console.log('缩放比例:', scale);
+        
+        // 创建一个新的可见容器，用于渲染
         const renderContainer = document.createElement('div');
-        renderContainer.style.width = `${renderWidth}px`;
-        renderContainer.style.height = `${renderHeight}px`;
+        
+        // 设置容器样式
+        renderContainer.style.position = 'fixed';
+        renderContainer.style.top = '0';
+        renderContainer.style.left = '0';
+        renderContainer.style.zIndex = '9999';
+        renderContainer.style.width = `${width}px`;
+        renderContainer.style.height = `${height}px`;
         renderContainer.style.backgroundColor = state.bgColor;
         renderContainer.style.backgroundImage = state.bgImage ? `url(${state.bgImage})` : 'none';
-        renderContainer.style.backgroundSize = state.bgMode === 'cover' ? 'cover' : state.bgMode === 'contain' ? 'contain' : 'repeat';
+        renderContainer.style.backgroundSize = state.bgMode;
         renderContainer.style.backgroundPosition = 'center';
         renderContainer.style.backgroundRepeat = state.bgMode === 'repeat' ? 'repeat' : 'no-repeat';
-        renderContainer.style.position = 'relative';
+        renderContainer.style.overflow = 'hidden';
+        renderContainer.style.opacity = '0.99'; // 几乎透明，但可见以确保渲染
         
+        // 添加到文档中
+        document.body.appendChild(renderContainer);
+        console.log('渲染容器已添加到文档');
+        
+        // 创建文本容器
+        const textContainer = document.createElement('div');
+        
+        // 解析字体样式
         const fontParts = state.font.split(';');
         const fontFamily = fontParts[0].trim();
         const fontWeight = fontParts.length > 1 ? fontParts[1].replace('font-weight:', '').trim() : '400';
         
-        const textContainer = document.createElement('div');
+        // 设置文本容器样式
         textContainer.style.position = 'absolute';
         textContainer.style.inset = '0';
         textContainer.style.display = 'flex';
         textContainer.style.alignItems = 'center';
         textContainer.style.justifyContent = 'center';
-        textContainer.style.padding = `${2 * scale}rem`;
+        textContainer.style.padding = '2rem';
         textContainer.style.color = state.fontColor;
         textContainer.style.fontFamily = fontFamily;
         textContainer.style.fontWeight = fontWeight;
-        textContainer.style.fontSize = `${state.fontSize * scale}px`;
+        textContainer.style.fontSize = `${state.fontSize}px`;
         textContainer.style.textAlign = state.textAlign;
         textContainer.style.lineHeight = state.lineHeight;
         textContainer.style.whiteSpace = 'pre-wrap';
         textContainer.style.wordBreak = 'break-all';
         textContainer.textContent = state.text;
         
+        // 添加到渲染容器
         renderContainer.appendChild(textContainer);
-        elements.tempRenderContainer.appendChild(renderContainer);
-
-        await new Promise(resolve => setTimeout(resolve, 100));
-
+        console.log('文本容器已添加到渲染容器');
+        console.log('文本内容:', state.text);
+        
+        // 等待样式和字体加载
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        console.log('=== 开始调用html2canvas ===');
         const canvas = await html2canvas(renderContainer, {
-          scale: 1,
+          scale: scale,
           useCORS: true,
           allowTaint: true,
-          logging: false,
-          backgroundColor: null,
-          foreignObjectRendering: false,
+          logging: true,
+          backgroundColor: state.bgColor,
+          foreignObjectRendering: true,
           removeContainer: false
         });
+        console.log('=== html2canvas调用成功 ===');
+        console.log('画布尺寸:', canvas.width, canvas.height);
+        
+        // 从文档中移除渲染容器
+        document.body.removeChild(renderContainer);
+        console.log('渲染容器已从文档中移除');
 
-        canvas.toBlob(async (blob) => {
-          try {
-            const blobUrl = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.download = `自媒体图文_${Date.now()}_${quality === 'high' ? '高清' : '标清'}.png`;
-            link.href = blobUrl;
-            link.dispatchEvent(new MouseEvent('click', {
-              bubbles: true,
-              cancelable: true,
-              view: window
-            }));
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-            alert(`✅ ${quality === 'high' ? '高清' : '标清'}图片下载成功！`);
-          } catch (e) {
-            const dataUrl = canvas.toDataURL('image/png', quality === 'high' ? 1.0 : 0.8);
-            const link = document.createElement('a');
-            link.download = `自媒体图文_${Date.now()}_${quality === 'high' ? '高清' : '标清'}.png`;
-            link.href = dataUrl;
-            link.click();
-            alert(`✅ ${quality === 'high' ? '高清' : '标清'}图片下载成功（降级模式）！`);
-          }
-        }, 'image/png', quality === 'high' ? 1.0 : 0.8);
+        // 简化下载逻辑，直接使用toDataURL
+        console.log('=== 开始生成图片 ===');
+        const dataUrl = canvas.toDataURL('image/png', quality === 'high' ? 1.0 : 0.8);
+        console.log('=== 图片生成成功 ===');
+        
+        const link = document.createElement('a');
+        link.download = `自媒体图文_${Date.now()}_${quality === 'high' ? '高清' : '标清'}.png`;
+        link.href = dataUrl;
+        link.click();
+        
+        console.log('=== 下载完成 ===');
+        // alert(`✅ ${quality === 'high' ? '高清' : '标清'}图片下载成功！`);
         
       } catch (error) {
-        console.error('下载失败:', error);
+        console.error('=== 下载失败 ===', error);
         alert(`❌ 下载失败，请尝试：
 1. 更换浏览器（推荐Chrome/Edge）
 2. 关闭浏览器隐私模式
@@ -733,7 +765,6 @@
         elements.downloadHighBtn.disabled = false;
         elements.downloadHighBtn2.disabled = false;
         elements.downloadNormalBtn.disabled = false;
-        elements.tempRenderContainer.innerHTML = '';
       }
     };
 
